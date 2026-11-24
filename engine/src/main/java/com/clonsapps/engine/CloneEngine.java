@@ -367,7 +367,7 @@ public final class CloneEngine {
             String schemes = null;
             for (CloneResult.Output o : result.outputs) {
                 CancelToken.check(cancel);
-                ApkSigning.Verification v = ApkSigning.verify(o.file);
+                ApkSigning.Verification v = ApkSigning.verify(o.file, set.base.info.minSdk);
                 if (!v.verified) {
                     throw new CloneException(ErrorCode.VERIFY_FAILED, o.file.getName() + ": " + v.errors);
                 }

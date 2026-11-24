@@ -55,7 +55,7 @@ public class SampleApksTest {
                 tmp.newFolder());
         assertEquals(in.size(), r.outputs.size());
         for (CloneResult.Output o : r.outputs) {
-            ApkSigning.Verification v = ApkSigning.verify(o.file);
+            ApkSigning.Verification v = ApkSigning.verify(o.file, 28);
             assertTrue(o.file + ": " + v.errors, v.verified);
             assertEquals(1, v.signers.size());
         }

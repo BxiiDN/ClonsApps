@@ -52,10 +52,18 @@ public final class ApkSigning {
         public final List<X509Certificate> signers = new ArrayList<>();
     }
 
-    public static Verification verify(File apk) {
+    /**
+     * @param minSdk minSdk aplikasi (dari base APK). Split dari Play Store tidak memiliki &lt;uses-sdk&gt;;
+     *               tanpa parameter ini apksig menganggapnya API 1 dan menuntut tanda tangan v1,
+     *               padahal Android memverifikasi split bersama base memakai minSdk aplikasi.
+     */
+    public static Verification verify(File apk, int minSdk) {
         Verification v = new Verification();
         try {
-            ApkVerifier.Result r = new ApkVerifier.Builder(apk).build().verify();
+            ApkVerifier.Result r = new ApkVerifier.Builder(apk)
+                    .setMinCheckedPlatformVersion(Math.max(1, minSdk))
+                    .build()
+                    .verify();
             v.verified = r.isVerified();
             v.v1 = r.isVerifiedUsingV1Scheme();
             v.v2 = r.isVerifiedUsingV2Scheme();
@@ -63,10 +71,23 @@ public final class ApkSigning {
             for (ApkVerifier.IssueWithParams i : r.getErrors()) {
                 v.errors.add(i.toString());
             }
+            for (ApkVerifier.Result.V1SchemeSignerInfo s : r.getV1SchemeSigners()) {
+                for (ApkVerifier.IssueWithParams i : s.getErrors()) {
+                    v.errors.add("v1: " + i);
+                }
+            }
             for (ApkVerifier.Result.V2SchemeSignerInfo s : r.getV2SchemeSigners()) {
                 for (ApkVerifier.IssueWithParams i : s.getErrors()) {
                     v.errors.add("v2: " + i);
                 }
+            }
+            for (ApkVerifier.Result.V3SchemeSignerInfo s : r.getV3SchemeSigners()) {
+                for (ApkVerifier.IssueWithParams i : s.getErrors()) {
+                    v.errors.add("v3: " + i);
+                }
+            }
+            if (!v.verified && v.errors.isEmpty()) {
+                v.errors.add("tidak ada skema tanda tangan yang terverifikasi (v1=" + v.v1 + ", v2=" + v.v2 + ", v3=" + v.v3 + ")");
             }
             v.signers.addAll(r.getSignerCertificates());
         } catch (Exception e) {

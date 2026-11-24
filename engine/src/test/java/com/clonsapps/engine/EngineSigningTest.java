@@ -70,7 +70,7 @@ public class EngineSigningTest {
         assertEquals(keyA.certificateSha256(), r.certSha256);
         assertFalse(new File(out, ".tmp").exists());
         for (CloneResult.Output o : r.outputs) {
-            ApkSigning.Verification v = ApkSigning.verify(o.file);
+            ApkSigning.Verification v = ApkSigning.verify(o.file, 26);
             assertTrue(o.file + " " + v.errors, v.verified);
             assertTrue(v.v2);
             assertEquals(64, o.sha256.length());

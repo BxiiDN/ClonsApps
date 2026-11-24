@@ -214,7 +214,9 @@ final class Fixtures {
             root.add(bool("isSplitRequired", AndroidAttrs.IS_SPLIT_REQUIRED, true));
         }
         x.start("manifest", root.toArray(new A[0]));
-        x.leaf("uses-sdk", intv("minSdkVersion", AndroidAttrs.MIN_SDK_VERSION, minSdk), intv("targetSdkVersion", AndroidAttrs.TARGET_SDK_VERSION, 34));
+if (split == null) {
+            x.leaf("uses-sdk", intv("minSdkVersion", AndroidAttrs.MIN_SDK_VERSION, minSdk), intv("targetSdkVersion", AndroidAttrs.TARGET_SDK_VERSION, 34));
+        }
         if (split == null) {
             x.leaf("permission", str("name", AndroidAttrs.NAME, pkg + ".permission.SYNC"));
             x.leaf("uses-permission", str("name", AndroidAttrs.NAME, pkg + ".permission.SYNC"));
