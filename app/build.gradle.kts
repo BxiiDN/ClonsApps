@@ -41,12 +41,15 @@ android {
             isMinifyEnabled = false
         }
         getByName("release") {
+            // Tanpa R8 agar perilaku identik dengan yang diuji; non-debuggable agar Compose berjalan cepat.
             isMinifyEnabled = false
-            if (releaseKeystore != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // Tanpa secret rilis: ditandatangani kunci debug runner (dicatat di catatan rilis).
+            signingConfig = if (releaseKeystore != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
+
+    // Pengujian instrumentasi dijalankan terhadap APK rilis yang sama dengan yang diterbitkan.
+    testBuildType = "release"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

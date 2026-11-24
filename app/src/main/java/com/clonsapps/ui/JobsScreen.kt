@@ -142,7 +142,7 @@ fun JobList(jobs: List<CloneJob>, selected: String?, empty: String, onSelect: (S
     }
 }
 
-private val timeFormat = SimpleDateFormat("d MMM yyyy HH:mm", Locale("in", "ID"))
+private val timeFormat = SimpleDateFormat("d MMM yyyy HH:mm", Locale.forLanguageTag("id-ID"))
 
 @Composable
 fun JobDetail(jobId: String, snack: (String) -> Unit, onDeleted: () -> Unit) {

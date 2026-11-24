@@ -61,23 +61,27 @@ jobs:
       - name: Uji mesin cloning (JVM, termasuk APK contoh nyata dan split)
         run: ./gradlew --stacktrace :engine:test -PsampleSplitApks="$PWD/sample-split.apks"
 
-      - name: Uji unit aplikasi + bangun APK ClonApps dan APK uji instrumentasi
-        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
-
-      - name: APK rilis bertanda tangan (hanya bila secret tersedia)
+      - name: Uji unit aplikasi + bangun APK rilis ClonApps dan APK uji instrumentasi
         env:
           KEYSTORE_B64: ${{ secrets.CLONAPPS_KEYSTORE_BASE64 }}
           CLONAPPS_KEYSTORE_PASSWORD: ${{ secrets.CLONAPPS_KEYSTORE_PASSWORD }}
           CLONAPPS_KEY_ALIAS: ${{ secrets.CLONAPPS_KEY_ALIAS }}
           CLONAPPS_KEY_PASSWORD: ${{ secrets.CLONAPPS_KEY_PASSWORD }}
         run: |
-          if [ -z "${KEYSTORE_B64}" ]; then echo "Secret keystore rilis tidak ada; hanya APK debug yang dibuat."; exit 0; fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          CLONAPPS_KEYSTORE_FILE="$RUNNER_TEMP/release.jks" ./gradlew --stacktrace :app:assembleRelease
+          set -euo pipefail
+          if [ -n "${KEYSTORE_B64}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export CLONAPPS_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+            echo "SIGNING=release-secret" >> "$GITHUB_ENV"
+          else
+            echo "Secret keystore rilis tidak ada: APK rilis ditandatangani kunci debug runner."
+            echo "SIGNING=ci-debug-key" >> "$GITHUB_ENV"
+          fi
+          ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest
           rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Lint (laporan, tidak memblokir)
-        run: ./gradlew :app:lintDebug || true
+        run: ./gradlew :app:lintRelease || true
 
       - name: Ringkasan uji JVM
         if: always()
@@ -90,11 +94,8 @@ jobs:
           VERSION=$(grep -E 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*"(.*)".*/\1/')
           SHORT=${GITHUB_SHA::7}
           mkdir -p dist/samples dist/test
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/ClonApps-v${VERSION}-debug-${SHORT}.apk"
-          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk "dist/ClonApps-v${VERSION}-release-${SHORT}.apk"
-          fi
-          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk dist/test/
+          cp app/build/outputs/apk/release/app-release.apk "dist/ClonApps-v${VERSION}-${SHORT}.apk"
+          cp app/build/outputs/apk/androidTest/release/app-release-androidTest.apk dist/test/
           for s in simple multidex nativelib provider; do cp "samples/$s/build/outputs/apk/debug/$s-debug.apk" dist/samples/; done
           cp sample-split.apks dist/samples/
           cp jvm-summary.md dist/
@@ -104,8 +105,10 @@ jobs:
           Commit       : ${GITHUB_SHA}
           Workflow run : ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           Dibangun     : $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          APK debug ditandatangani kunci debug runner CI (berbeda di setiap build).
+          Build type   : release (non-debuggable, tanpa R8)
+          Tanda tangan : ${SIGNING}
           INFO
+          echo "${SIGNING}" > dist/SIGNING.txt
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "short=${SHORT}" >> "$GITHUB_OUTPUT"
 
@@ -201,10 +204,10 @@ jobs:
           {
             echo "APK ClonApps dari commit \`${GITHUB_SHA}\` (run [${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}))."
             echo
-            if ls dist/ClonApps-*-release-*.apk >/dev/null 2>&1; then
-              echo "APK **release** ditandatangani kunci rilis dari GitHub Secrets."
+            if [ "$(cat dist/SIGNING.txt)" = "release-secret" ]; then
+              echo "APK rilis (non-debuggable) ditandatangani kunci rilis dari GitHub Secrets."
             else
-              echo "APK ini **debug** (ditandatangani kunci debug runner CI). Kunci berbeda di tiap build: untuk memperbarui ClonApps dari build lain, copot dulu versi lama. **Cadangkan kunci clone di Pengaturan sebelum mencopot ClonApps.**"
+              echo "APK rilis (non-debuggable) yang ditandatangani **kunci debug runner CI**, karena secret keystore rilis belum diatur. Kunci ini berbeda di tiap build: untuk memperbarui ClonApps dari build lain, copot dulu versi lama. **Cadangkan kunci clone di Pengaturan sebelum mencopot ClonApps.**"
             fi
             echo
             echo "### SHA-256"
