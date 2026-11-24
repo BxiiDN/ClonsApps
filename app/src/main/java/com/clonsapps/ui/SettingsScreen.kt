@@ -140,7 +140,7 @@ fun SettingsScreen(snack: (String) -> Unit) {
             Text("• ClonApps membuat APK mandiri dengan package name baru, diproses sepenuhnya di perangkat (tanpa server).", style = MaterialTheme.typography.bodySmall)
             Text("• Metode profil kerja tidak disediakan di sini: metode itu hanya menjalankan salinan aplikasi yang sama di profil lain dan TIDAK menghasilkan APK mandiri dengan identitas baru.", style = MaterialTheme.typography.bodySmall)
             Text("• Tidak semua aplikasi dapat berjalan setelah package dan tanda tangannya diubah (pemeriksaan lisensi, Play Integrity, login Google/Firebase). ClonApps melaporkannya, tidak memalsukan integritas, dan tidak menonaktifkan proteksi aplikasi.", style = MaterialTheme.typography.bodySmall)
-            Text("Versi ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${if (BuildConfig.DEBUG) "build debug" else "build rilis"}", style = MaterialTheme.typography.labelSmall)
+            Text("Versi ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · commit ${BuildConfig.GIT_SHA} · ${if (BuildConfig.DEBUG) "build debug" else "build rilis"}", style = MaterialTheme.typography.labelSmall)
         }
         Spacer(Modifier.height(24.dp))
     }

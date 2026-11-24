@@ -102,6 +102,23 @@ public class EngineSigningTest {
     }
 
     @Test
+    public void playStoreStyleSplitsWithLowMinSdkVerify() throws Exception {
+        File root = tmp.getRoot();
+        List<File> in = Arrays.asList(
+                Fixtures.notesApk(root, "base21.apk", false, 21),
+                Fixtures.splitApk(root, "abi21.apk", "config.arm64_v8a", true),
+                Fixtures.splitApk(root, "dpi21.apk", "config.xxhdpi", false));
+        CloneResult r = new CloneEngine(null, null, null).run(in,
+                new CloneSpec("com.example.notes.clone7", "Tujuh", null, "x"), keyA, ARM64, tmp.newFolder("o21"));
+        assertEquals(3, r.outputs.size());
+        assertTrue(r.signatureSchemes, r.signatureSchemes.contains("v1") && r.signatureSchemes.contains("v2"));
+        for (CloneResult.Output o : r.outputs) {
+            ApkSigning.Verification v = ApkSigning.verify(o.file, 21);
+            assertTrue(o.file + " " + v.errors, v.verified);
+        }
+    }
+
+    @Test
     public void sameKeyIsReusedForUpdatesDifferentKeyDiffers() throws Exception {
         File base = Fixtures.notesApk(tmp.getRoot(), "base.apk");
         CloneSpec spec = new CloneSpec("com.example.notes.clone3", null, null, "x");

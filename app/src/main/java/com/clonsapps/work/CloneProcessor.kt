@@ -49,6 +49,7 @@ class CloneProcessor(
             it.copy(build = BuildState.RUNNING, stage = "Menyiapkan", stageIndex = -1, progress = 0f, startedAt = System.currentTimeMillis())
         }
         val log = ArrayList<String>()
+        log.add("ClonApps ${com.clonsapps.BuildConfig.VERSION_NAME} (commit ${com.clonsapps.BuildConfig.GIT_SHA})")
         var lastProgressSave = 0L
         val cancel = CancelToken { cancelFlags[jobId] == true }
         try {

@@ -20,8 +20,12 @@ android {
         applicationId = "com.clonsapps"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // Nomor build CI dipakai sebagai versionCode/versionName agar setiap build bisa dibedakan.
+        val ciBuild = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        val gitSha = (System.getenv("GITHUB_SHA") ?: "lokal").take(7)
+        versionCode = 100 + ciBuild
+        versionName = "1.0.$ciBuild"
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -91,7 +91,7 @@ jobs:
         id: pkg
         run: |
           set -euo pipefail
-          VERSION=$(grep -E 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          VERSION="1.0.${GITHUB_RUN_NUMBER}"
           SHORT=${GITHUB_SHA::7}
           mkdir -p dist/samples dist/test
           cp app/build/outputs/apk/release/app-release.apk "dist/ClonApps-v${VERSION}-${SHORT}.apk"
@@ -200,7 +200,7 @@ jobs:
           EMU: ${{ needs.emulator.result }}
         run: |
           set -euo pipefail
-          TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+          TAG="v${VERSION}"
           {
             echo "APK ClonApps dari commit \`${GITHUB_SHA}\` (run [${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}))."
             echo

@@ -195,7 +195,7 @@ private fun Header(tab: Tab, w: WizardState, selected: String?, showLogo: Boolea
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
-                if (tab == Tab.CREATE) Text("ClonApps · clone APK di perangkat", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (tab == Tab.CREATE) Text("ClonApps ${com.clonsapps.BuildConfig.VERSION_NAME} (${com.clonsapps.BuildConfig.GIT_SHA}) · clone APK di perangkat", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (tab == Tab.CREATE) StepHeader(w.step)

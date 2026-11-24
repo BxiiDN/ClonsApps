@@ -230,7 +230,7 @@ fun JobDetail(jobId: String, snack: (String) -> Unit, onDeleted: () -> Unit) {
             if (j.build == BuildState.RUNNING) LinearProgressIndicator(progress = { j.progress }, modifier = Modifier.fillMaxWidth())
             if (j.errorMessage != null && j.build != BuildState.BUILT) {
                 MessageRow(Icons.Filled.Warning, if (j.build == BuildState.CANCELLED) Tone.NEUTRAL else Tone.ERROR,
-                    "Penyebab [${j.errorCode}]", j.errorMessage, j.errorAction)
+                    "Penyebab [${j.errorCode}]", j.errorMessage + "\n" + (j.log.firstOrNull() ?: ""), j.errorAction)
             }
             if (j.build == BuildState.BUILT) {
                 if (j.outputsDeleted) Text("File hasil sudah dihapus.", style = MaterialTheme.typography.bodySmall)
