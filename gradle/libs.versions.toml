@@ -1,0 +1,39 @@
+# Versi yang sama dengan toolchain yang sudah terbukti lulus CI pada proyek ClonApps sebelumnya
+# (AGP 9.5.1 + Gradle 9.6.0, Kotlin 2.4.21, Compose BOM 2026.11.01, compileSdk 37.1).
+[versions]
+agp = "9.5.1"
+kotlin = "2.4.21"
+composeBom = "2026.11.01"
+materialIconsCore = "1.7.8"
+androidxCore = "1.19.1"
+activity = "1.13.0"
+lifecycle = "2.11.1"
+coroutines = "1.10.2"
+junit = "4.13.2"
+json = "20240303"
+androidxTestExt = "1.3.0"
+androidxTestRunner = "1.7.0"
+
+[libraries]
+# apksig: pustaka penandatangan/verifikator APK resmi Android (Java murni, Apache-2.0), versi mengikuti AGP.
+apksig = { module = "com.android.tools.build:apksig", version.ref = "agp" }
+androidx-core = { module = "androidx.core:core", version.ref = "androidxCore" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-material-icons-core = { module = "androidx.compose.material:material-icons-core", version.ref = "materialIconsCore" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+junit = { module = "junit:junit", version.ref = "junit" }
+json = { module = "org.json:json", version.ref = "json" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExt" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

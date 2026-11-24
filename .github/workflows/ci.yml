@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + pengujian JVM
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+      short: ${{ steps.pkg.outputs.short }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      # setup-gradle memvalidasi checksum gradle-wrapper.jar terhadap rilis resmi Gradle.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Bangun aplikasi contoh (APK) + AAB untuk split
+        run: >
+          ./gradlew --stacktrace
+          :samples:simple:assembleDebug :samples:multidex:assembleDebug
+          :samples:nativelib:assembleDebug :samples:provider:assembleDebug
+          :samples:split:bundleDebug
+
+      - name: Sampel split APK (bundletool)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download --repo google/bundletool --pattern 'bundletool-all-*.jar' --output bundletool.jar --clobber
+          # Keystore uji sekali pakai hanya untuk sampel; tidak disimpan di repository.
+          keytool -genkeypair -keystore sample-test.jks -storepass android -keypass android -alias sample \
+            -keyalg RSA -keysize 2048 -validity 30 -dname "CN=ClonApps Sample Test" -noprompt
+          java -jar bundletool.jar build-apks --overwrite \
+            --bundle=samples/split/build/outputs/bundle/debug/split-debug.aab \
+            --output=sample-split.apks \
+            --ks=sample-test.jks --ks-pass=pass:android --ks-key-alias=sample --key-pass=pass:android
+          unzip -l sample-split.apks | grep -E 'splits/' | head -40
+
+      - name: Uji mesin cloning (JVM, termasuk APK contoh nyata dan split)
+        run: ./gradlew --stacktrace :engine:test -PsampleSplitApks="$PWD/sample-split.apks"
+
+      - name: Uji unit aplikasi + bangun APK ClonApps dan APK uji instrumentasi
+        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: APK rilis bertanda tangan (hanya bila secret tersedia)
+        env:
+          KEYSTORE_B64: ${{ secrets.CLONAPPS_KEYSTORE_BASE64 }}
+          CLONAPPS_KEYSTORE_PASSWORD: ${{ secrets.CLONAPPS_KEYSTORE_PASSWORD }}
+          CLONAPPS_KEY_ALIAS: ${{ secrets.CLONAPPS_KEY_ALIAS }}
+          CLONAPPS_KEY_PASSWORD: ${{ secrets.CLONAPPS_KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_B64}" ]; then echo "Secret keystore rilis tidak ada; hanya APK debug yang dibuat."; exit 0; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          CLONAPPS_KEYSTORE_FILE="$RUNNER_TEMP/release.jks" ./gradlew --stacktrace :app:assembleRelease
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Lint (laporan, tidak memblokir)
+        run: ./gradlew :app:lintDebug || true
+
+      - name: Ringkasan uji JVM
+        if: always()
+        run: python3 scripts/test-summary.py jvm-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Kemas APK, SHA-256, info build
+        id: pkg
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -E 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          SHORT=${GITHUB_SHA::7}
+          mkdir -p dist/samples dist/test
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ClonApps-v${VERSION}-debug-${SHORT}.apk"
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk "dist/ClonApps-v${VERSION}-release-${SHORT}.apk"
+          fi
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk dist/test/
+          for s in simple multidex nativelib provider; do cp "samples/$s/build/outputs/apk/debug/$s-debug.apk" dist/samples/; done
+          cp sample-split.apks dist/samples/
+          cp jvm-summary.md dist/
+          (cd dist && sha256sum ClonApps-*.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cat > dist/BUILD-INFO.txt <<INFO
+          ClonApps ${VERSION}
+          Commit       : ${GITHUB_SHA}
+          Workflow run : ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          Dibangun     : $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          APK debug ditandatangani kunci debug runner CI (berbeda di setiap build).
+          INFO
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHORT}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+      - name: Unggah laporan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-build
+          path: |
+            engine/build/reports/tests/
+            engine/build/test-results/
+            app/build/reports/
+            app/build/test-results/
+            jvm-summary.md
+          if-no-files-found: ignore
+
+  emulator:
+    name: Pengujian perangkat (emulator API 34)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Aktifkan KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Unduh bundletool
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo google/bundletool --pattern 'bundletool-all-*.jar' --output bundletool.jar --clobber
+      - name: Emulator + CloneDeviceTest
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/device-test.sh dist bundletool.jar device-report
+      - name: Ringkasan
+        if: always()
+        run: cat device-report/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-report
+          path: device-report/
+          if-no-files-found: ignore
+
+  release:
+    name: Rilis GitHub
+    needs: [ build, emulator ]
+    if: always() && needs.build.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: device-report
+          path: device-report
+      - name: Buat rilis
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SHORT: ${{ needs.build.outputs.short }}
+          EMU: ${{ needs.emulator.result }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+          {
+            echo "APK ClonApps dari commit \`${GITHUB_SHA}\` (run [${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}))."
+            echo
+            if ls dist/ClonApps-*-release-*.apk >/dev/null 2>&1; then
+              echo "APK **release** ditandatangani kunci rilis dari GitHub Secrets."
+            else
+              echo "APK ini **debug** (ditandatangani kunci debug runner CI). Kunci berbeda di tiap build: untuk memperbarui ClonApps dari build lain, copot dulu versi lama. **Cadangkan kunci clone di Pengaturan sebelum mencopot ClonApps.**"
+            fi
+            echo
+            echo "### SHA-256"
+            echo '```'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+            echo
+            cat dist/jvm-summary.md
+            echo
+            if [ -f device-report/summary.md ]; then cat device-report/summary.md; else echo "## Pengujian perangkat (emulator)"; echo; echo "- Status job emulator: **${EMU}** (laporan tidak tersedia)"; fi
+            echo
+            echo "Hasil build dan hasil uji emulator dibedakan; belum ada hasil uji di perangkat fisik. Keterbatasan: lihat docs/LIMITATIONS.md."
+          } > notes.md
+          PRE=""
+          if [ "$EMU" != "success" ]; then PRE="--prerelease"; fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ClonApps ${VERSION} (build ${GITHUB_RUN_NUMBER})" \
+            --notes-file notes.md $PRE dist/ClonApps-*.apk dist/SHA256SUMS.txt dist/BUILD-INFO.txt
