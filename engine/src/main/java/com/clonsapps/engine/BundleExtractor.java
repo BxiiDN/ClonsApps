@@ -58,6 +58,8 @@ public final class BundleExtractor {
                 throw new CloneException(ErrorCode.IO_ERROR, "tidak bisa membuat " + outDir);
             }
             int idx = 0;
+            java.util.Map<Integer, List<File>> variants = new java.util.TreeMap<>();
+            java.util.Map<Integer, Integer> variantMinSdk = new java.util.HashMap<>();
             for (ZipArchive.Entry e : nested) {
                 CancelToken.check(cancel);
                 // Format bundletool: pakai splits/, abaikan standalones/ dan universal.apk.
@@ -73,6 +75,10 @@ public final class BundleExtractor {
                     throw new CloneException(ce.code(), e.name + ": " + ce.detail(), ce);
                 }
                 String abi = DeviceProfile.abiFromSplit(apk.info.split);
+                int variant = hasSplitsDir ? bundletoolVariant(e.name, apk.info) : 1;
+                if (apk.isBase()) {
+                    variantMinSdk.put(variant, apk.info.minSdk);
+                }
                 apk.zip.close();
                 if (abi != null && !device.supportedAbis.contains(abi)) {
                     //noinspection ResultOfMethodCallIgnored
@@ -80,7 +86,43 @@ public final class BundleExtractor {
                     ex.notes.add(Issue.info("ABI_SPLIT_SKIPPED", "Split ABI dilewati", e.name + " (" + abi + ")"));
                     continue;
                 }
-                ex.apks.add(f);
+                List<File> group = variants.get(variant);
+                if (group == null) {
+                    group = new ArrayList<>();
+                    variants.put(variant, group);
+                }
+                group.add(f);
+            }
+            // bundletool dapat menyimpan beberapa varian (target SDK berbeda) dalam satu .apks.
+            // Pilih varian dengan minSdk tertinggi yang masih didukung perangkat; varian lain tidak dipakai.
+            int chosen = -1;
+            int bestSdk = -1;
+            for (java.util.Map.Entry<Integer, Integer> v : variantMinSdk.entrySet()) {
+                if (v.getValue() <= device.sdkInt && v.getValue() >= bestSdk) {
+                    bestSdk = v.getValue();
+                    chosen = v.getKey();
+                }
+            }
+            if (variants.size() > 1) {
+                if (chosen < 0) {
+                    throw new CloneException(ErrorCode.MIN_SDK_TOO_HIGH,
+                            "tidak ada varian di bundel yang mendukung API " + device.sdkInt);
+                }
+                ex.notes.add(Issue.info("BUNDLE_VARIANT", "Varian bundel dipilih",
+                        variants.size() + " varian; dipakai varian " + chosen + " (minSdk " + bestSdk + ")"));
+                for (java.util.Map.Entry<Integer, List<File>> v : variants.entrySet()) {
+                    if (v.getKey() != chosen) {
+                        for (File f : v.getValue()) {
+                            //noinspection ResultOfMethodCallIgnored
+                            f.delete();
+                        }
+                    }
+                }
+                ex.apks.addAll(variants.get(chosen));
+            } else {
+                for (List<File> g : variants.values()) {
+                    ex.apks.addAll(g);
+                }
             }
             if (obb > 0) {
                 ex.notes.add(Issue.warn("OBB_IGNORED", "File OBB tidak ikut di-clone",
@@ -89,6 +131,43 @@ public final class BundleExtractor {
             }
             return ex;
         }
+    }
+
+    /**
+     * Nomor varian bundletool dari nama file: &lt;modul&gt;-&lt;akhiran&gt;[_N].apk, dengan akhiran "master"
+     * atau nama konfigurasi split (misalnya x86_64, xxhdpi). Nama dibandingkan dengan nama yang diharapkan dari
+     * manifest agar akhiran ABI seperti "x86_64" tidak tertukar dengan nomor varian.
+     */
+    static int bundletoolVariant(String entryName, ManifestInfo info) {
+        String file = entryName.substring(entryName.lastIndexOf('/') + 1);
+        if (!file.toLowerCase(java.util.Locale.ROOT).endsWith(".apk")) {
+            return 1;
+        }
+        String stem = file.substring(0, file.length() - 4);
+        String split = info.split;
+        String module;
+        String suffix;
+        if (split == null || split.isEmpty()) {
+            module = "base";
+            suffix = "master";
+        } else if (split.startsWith("config.")) {
+            module = info.configForSplit == null || info.configForSplit.isEmpty() ? "base" : info.configForSplit;
+            suffix = split.substring("config.".length());
+        } else {
+            module = split;
+            suffix = "master";
+        }
+        String expected = module + "-" + suffix;
+        if (stem.equals(expected)) {
+            return 1;
+        }
+        if (stem.startsWith(expected + "_")) {
+            String n = stem.substring(expected.length() + 1);
+            if (n.matches("\\d{1,3}")) {
+                return Integer.parseInt(n);
+            }
+        }
+        return 1;
     }
 
     private static void copyEntry(ZipArchive z, ZipArchive.Entry e, File out, CancelToken cancel) throws CloneException {

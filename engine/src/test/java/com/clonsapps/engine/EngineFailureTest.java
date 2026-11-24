@@ -231,6 +231,40 @@ public class EngineFailureTest {
     }
 
     @Test
+    public void bundletoolVariantsAreSelectedBySdk() throws Exception {
+        File root = tmp.getRoot();
+        Map<String, byte[]> stored = new LinkedHashMap<>();
+        stored.put("splits/base-master.apk", java.nio.file.Files.readAllBytes(Fixtures.notesApk(root, "v1.apk", false, 26).toPath()));
+        stored.put("splits/base-master_2.apk", java.nio.file.Files.readAllBytes(Fixtures.notesApk(root, "v2.apk", false, 31).toPath()));
+        stored.put("splits/base-master_3.apk", java.nio.file.Files.readAllBytes(Fixtures.notesApk(root, "v3.apk", false, 35).toPath()));
+        byte[] abi = java.nio.file.Files.readAllBytes(Fixtures.splitApk(root, "a.apk", "config.x86_64", false).toPath());
+        stored.put("splits/base-x86_64.apk", abi);
+        stored.put("splits/base-x86_64_2.apk", abi);
+        stored.put("splits/base-x86_64_3.apk", abi);
+        File bundle = Fixtures.writeZip(new File(root, "variants.apks"), stored, new LinkedHashMap<String, byte[]>());
+        DeviceProfile api34 = DeviceProfile.of(34, "x86_64");
+        BundleExtractor.Extracted ex = BundleExtractor.extract(bundle, tmp.newFolder("vx"), api34, CancelToken.NONE);
+        assertEquals("varian 2 (minSdk 31) untuk API 34: " + ex.apks, 2, ex.apks.size());
+        assertTrue(ex.notes.toString(), ex.notes.toString().contains("varian 2"));
+        try (ApkSet set = ApkSet.open(ex.apks, CancelToken.NONE)) {
+            assertEquals(31, set.base.info.minSdk);
+            assertEquals("config.x86_64", set.splits.get(0).splitName());
+        }
+        ManifestInfo cfg = new ManifestInfo();
+        cfg.split = "config.x86_64";
+        assertEquals(1, BundleExtractor.bundletoolVariant("splits/base-x86_64.apk", cfg));
+        assertEquals(2, BundleExtractor.bundletoolVariant("splits/base-x86_64_2.apk", cfg));
+        ManifestInfo master = new ManifestInfo();
+        assertEquals(3, BundleExtractor.bundletoolVariant("splits/base-master_3.apk", master));
+        try {
+            BundleExtractor.extract(bundle, tmp.newFolder("vy"), DeviceProfile.of(24, "x86_64"), CancelToken.NONE);
+            fail();
+        } catch (CloneException e) {
+            assertEquals(ErrorCode.MIN_SDK_TOO_HIGH, e.code());
+        }
+    }
+
+    @Test
     public void bundleExtractionKeepsSplitsSeparateAndSkipsForeignAbi() throws Exception {
         File root = tmp.getRoot();
         Map<String, byte[]> stored = new LinkedHashMap<>();

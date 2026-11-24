@@ -198,6 +198,10 @@ final class Fixtures {
     }
 
     static byte[] notesManifest(String pkg, String split, boolean splitRequired) throws Exception {
+        return notesManifest(pkg, split, splitRequired, 26);
+    }
+
+    static byte[] notesManifest(String pkg, String split, boolean splitRequired, int minSdk) throws Exception {
         XmlBuilder x = new XmlBuilder();
         List<A> root = new ArrayList<>();
         root.add(intv("versionCode", AndroidAttrs.VERSION_CODE, 7));
@@ -210,7 +214,7 @@ final class Fixtures {
             root.add(bool("isSplitRequired", AndroidAttrs.IS_SPLIT_REQUIRED, true));
         }
         x.start("manifest", root.toArray(new A[0]));
-        x.leaf("uses-sdk", intv("minSdkVersion", AndroidAttrs.MIN_SDK_VERSION, 26), intv("targetSdkVersion", AndroidAttrs.TARGET_SDK_VERSION, 34));
+        x.leaf("uses-sdk", intv("minSdkVersion", AndroidAttrs.MIN_SDK_VERSION, minSdk), intv("targetSdkVersion", AndroidAttrs.TARGET_SDK_VERSION, 34));
         if (split == null) {
             x.leaf("permission", str("name", AndroidAttrs.NAME, pkg + ".permission.SYNC"));
             x.leaf("uses-permission", str("name", AndroidAttrs.NAME, pkg + ".permission.SYNC"));
@@ -406,10 +410,14 @@ final class Fixtures {
     }
 
     static File notesApk(File dir, String fileName, boolean splitRequired) throws Exception {
+        return notesApk(dir, fileName, splitRequired, 26);
+    }
+
+    static File notesApk(File dir, String fileName, boolean splitRequired, int minSdk) throws Exception {
         String pkg = "com.example.notes";
         Map<String, byte[]> stored = new LinkedHashMap<>();
         Map<String, byte[]> deflated = new LinkedHashMap<>();
-        deflated.put("AndroidManifest.xml", notesManifest(pkg, null, splitRequired));
+        deflated.put("AndroidManifest.xml", notesManifest(pkg, null, splitRequired, minSdk));
         stored.put("resources.arsc", arsc(pkg, true));
         deflated.put("classes.dex", dex("Lcom/example/notes/MainActivity;", pkg + ".notes", "hello"));
         deflated.put("classes2.dex", dex("Lcom/pairip/licensecheck/LicenseClient;"));
