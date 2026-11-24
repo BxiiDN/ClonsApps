@@ -77,7 +77,7 @@ jobs:
             echo "Secret keystore rilis tidak ada: APK rilis ditandatangani kunci debug runner."
             echo "SIGNING=ci-debug-key" >> "$GITHUB_ENV"
           fi
-          ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest
+          ./gradlew --stacktrace :app:testReleaseUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest
           rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Lint (laporan, tidak memblokir)

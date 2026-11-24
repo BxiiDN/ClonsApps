@@ -20,7 +20,7 @@ def summarize(title, pattern):
 
 out = ["## Pengujian JVM", ""]
 out += summarize("Mesin cloning (:engine, termasuk APK contoh nyata)", "engine/build/test-results/test/*.xml")
-out += summarize("Aplikasi (:app unit test)", "app/build/test-results/testDebugUnitTest/*.xml")
+out += summarize("Aplikasi (:app unit test)", "app/build/test-results/testReleaseUnitTest/*.xml")
 text = "\n".join(out) + "\n"
 print(text)
 if len(sys.argv) > 1:
